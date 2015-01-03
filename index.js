@@ -6,6 +6,12 @@ var queryString = require('query-string');
 var trim = require('trim');
 var _ = require('lodash');
 
+/**
+ * Login to the learn website
+ * @param {string} userName - User name
+ * @param {string} password - Password
+ * @param {function(err, cookieJar)} callback - The callback function, with parameters err and cookieJar. cookieJar stores cookie used in later requests.
+ */
 function login(userName, password, callback) {
   var jar = request.jar();
   request.post({
@@ -20,6 +26,11 @@ function login(userName, password, callback) {
   });
 }
 
+/**
+ * Get IDs of all courses using specific cookie
+ * @param {object} cookieJar - Cookie object returned by {@link login} function
+ * @param {function(err, courseIds)} callback - The callback function, with parameters err and courseIds.
+ */
 function getCourseIds(cookieJar, callback) {
   request.get({
     url: 'http://learn.tsinghua.edu.cn/MultiLanguage/lesson/student/MyCourse.jsp',
@@ -151,7 +162,7 @@ function parseCourseHomework(courseId, cookieJar, callback) {
         return callback(err);
       }
       callback(null, result);
-    })
+    });
   });
 }
 
@@ -187,6 +198,12 @@ function parseCourseFile(courseId, cookieJar, callback) {
   });
 }
 
+/**
+ * Parse a course using specific cookie
+ * @param {number} courseId - The ID of the course
+ * @param {object} cookieJar - Cookie object returned by {@link login} function
+ * @param {function(err, result)} callback - The callback function, with parameters err and result.
+ */
 function parseCourse(courseId, cookieJar, callback) {
   async.parallel([
     function (callback) {
@@ -215,6 +232,12 @@ function parseCourse(courseId, cookieJar, callback) {
   });
 }
 
+/**
+ * Parse multiple courses using specific cookie
+ * @param {number} courseIds - The IDs of the courses
+ * @param {object} cookieJar - Cookie object returned by {@link login} function
+ * @param {function(err, result)} callback - The callback function, with parameters err and result.
+ */
 function parseCourses(courseIds, cookieJar, callback) {
   async.map(courseId, function (courseId, callback) {
     parseCourse(courseId, cookieJar, callback);
