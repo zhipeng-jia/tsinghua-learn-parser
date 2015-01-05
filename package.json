@@ -1,7 +1,7 @@
 {
   "name": "tsinghua-learn-parser",
   "version": "0.1.0",
-  "description": "",
+  "description": "JavaScript parser for THU's learn website",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -10,7 +10,10 @@
     "type": "git",
     "url": "https://github.com/zhipeng-jia/tsinghua-learn-parser.git"
   },
-  "author": "Zhipeng Jia (zhipeng-jia@outlook.com)",
+  "author": {
+    "name": "Zhipeng Jia",
+    "email": "zhipeng.jia@outlook.com"
+  },
   "license": "BSD-3-Clause",
   "bugs": {
     "url": "https://github.com/zhipeng-jia/tsinghua-learn-parser/issues"
@@ -19,9 +22,10 @@
   "dependencies": {
     "async": "~0.9.0",
     "cheerio": "~0.18.0",
+    "iconv-lite": "~0.4.5",
     "lodash": "~2.4.1",
     "query-string": "~1.0.0",
     "request": "~2.51.0",
-    "trim": "0.0.1"
+    "string": "~3.0.0"
   }
 }

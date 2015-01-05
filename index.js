@@ -3,8 +3,11 @@ var request = require('request');
 var async = require('async');
 var cheerio = require('cheerio');
 var queryString = require('query-string');
-var trim = require('trim');
 var _ = require('lodash');
+var S = require('string');
+
+var iconv = require('iconv-lite');
+iconv.extendNodeEncodings();
 
 /**
  * Login to the learn website
@@ -53,20 +56,22 @@ function getCourseIds(cookieJar, callback) {
 
 function parseCourseName(courseId, cookieJar, callback) {
   request.get({
-    url: 'http://learn.tsinghua.edu.cn/MultiLanguage/public/bbs/getnoteid_student.jsp' + '?' + queryString.stringify({ course_id: courseId }),
+    url: 'http://learn.tsinghua.edu.cn/MultiLanguage/public/bbs/getnoteid_student.jsp',
+    qs: { course_id: courseId },
     jar: cookieJar
   }, function (err, res, body) {
     if (err) {
       return callback(err);
     }
     var $ = cheerio.load(body);
-    callback(null, trim($('#info_1 .info_title').text()));
+    callback(null, $('#info_1 .info_title').text().trim());
   });
 }
 
 function parseCourseNotification(courseId, cookieJar, callback) {
   request.get({
-    url: 'http://learn.tsinghua.edu.cn/MultiLanguage/public/bbs/getnoteid_student.jsp' + '?' + queryString.stringify({ course_id: courseId }),
+    url: 'http://learn.tsinghua.edu.cn/MultiLanguage/public/bbs/getnoteid_student.jsp',
+    qs: { course_id: courseId },
     jar: cookieJar
   }, function (err, res, body) {
     if (err) {
@@ -82,20 +87,20 @@ function parseCourseNotification(courseId, cookieJar, callback) {
         var urlParams = url.substring(url.lastIndexOf('?'));
         result.push({
           id: queryString.parse(urlParams)['id'],
-          title: trim(columns.eq(1).find('a').text()),
+          title: columns.eq(1).find('a').text().trim(),
           author: columns.eq(2).text(),
           releaseDate: columns.eq(3).text()
         });
       }
     });
     async.each(result, function (entry, callback) {
-      var params = {
-        bbs_type: '课程公告',
-        id: entry.id,
-        course_id: courseId
-      };
       request.get({
-        url: 'http://learn.tsinghua.edu.cn/MultiLanguage/public/bbs/note_reply.jsp' + '?' + queryString.stringify(params),
+        url: 'http://learn.tsinghua.edu.cn/MultiLanguage/public/bbs/note_reply.jsp',
+        qs: {
+          bbs_type: '课程公告',
+          id: entry.id,
+          course_id: courseId
+        },
         jar: cookieJar
       }, function (err, res, body) {
         if (err) {
@@ -116,7 +121,8 @@ function parseCourseNotification(courseId, cookieJar, callback) {
 
 function parseCourseHomework(courseId, cookieJar, callback) {
   request.get({
-    url: 'http://learn.tsinghua.edu.cn/MultiLanguage/lesson/student/hom_wk_brw.jsp' + '?' + queryString.stringify({ course_id: courseId }),
+    url: 'http://learn.tsinghua.edu.cn/MultiLanguage/lesson/student/hom_wk_brw.jsp',
+    qs: { course_id: courseId },
     jar: cookieJar
   }, function (err, res, body) {
     if (err) {
@@ -130,10 +136,10 @@ function parseCourseHomework(courseId, cookieJar, callback) {
         var columns = $(this).find('td');
         result.push({
           url: columns.eq(0).find('a').attr('href'),
-          title: trim(columns.eq(0).text()),
+          title: columns.eq(0).text().trim(),
           releaseDate: columns.eq(1).text(),
           deadline: columns.eq(2).text(),
-          submitted: trim(columns.eq(3).text()) === '已经提交'
+          submitted: columns.eq(3).text().trim() === '已经提交'
         });
       }
     });
@@ -168,7 +174,8 @@ function parseCourseHomework(courseId, cookieJar, callback) {
 
 function parseCourseFile(courseId, cookieJar, callback) {
   request.get({
-    url: 'http://learn.tsinghua.edu.cn/MultiLanguage/lesson/student/download.jsp' + '?' + queryString.stringify({ course_id: courseId }),
+    url: 'http://learn.tsinghua.edu.cn/MultiLanguage/lesson/student/download.jsp',
+    qs: { course_id: courseId },
     jar: cookieJar
   }, function (err, res, body) {
     if (err) {
@@ -186,7 +193,7 @@ function parseCourseFile(courseId, cookieJar, callback) {
           var columns = $(this).find('td');
           files.push({
             url: 'http://learn.tsinghua.edu.cn' + columns.eq(1).find('a').attr('href'),
-            title: trim(columns.eq(1).text()),
+            title: columns.eq(1).text().trim(),
             description: columns.eq(2).text(),
             releaseDate: columns.eq(4).text()
           });
@@ -239,12 +246,61 @@ function parseCourse(courseId, cookieJar, callback) {
  * @param {function(err, result)} callback - The callback function, with parameters err and result.
  */
 function parseCourses(courseIds, cookieJar, callback) {
-  async.map(courseId, function (courseId, callback) {
+  async.map(courseIds, function (courseId, callback) {
     parseCourse(courseId, cookieJar, callback);
   }, callback);
+}
+
+function getSaveName(url, cookieJar, callback) {
+  var components = require('url').parse(url);
+  var cookieString = cookieJar.getCookieString(components.protocol + '//' + components.host);
+  var spawn = require('child_process').spawn;
+  var child = spawn('curl', ['--cookie', cookieString, '--head', '-i', url], { stdio: [null, 'pipe'] });
+  var stream = child.stdout;
+  stream.setEncoding('GBK');
+  var output = '';
+  stream.on('data', function (chunk) {
+    output += chunk;
+  });
+  child.on('exit', function () {
+    var lines = S(output).lines();
+    var saveName = null;
+    _.each(lines, function (line) {
+      if (S(line).startsWith('Content-Disposition: ')) {
+        saveName = S(line).chompLeft('Content-Disposition: attachment;filename="').chompRight('"').s;
+      }
+    });
+    if (saveName == null) {
+      callback(new Error());
+    } else {
+      callback(null, saveName);
+    }
+  });
+}
+
+/**
+ * Download a specific attachment
+ * @param {string} url - The URL of the attachment
+ * @param {object} cookieJar - Cookie object returned by {@link login} function
+ * @param {function(err, result)} callback - The callback function, with parameters err, saveName and fileBody.
+ */
+function downloadFile(url, cookieJar, callback) {
+  getSaveName(url, cookieJar, function (err, saveName) {
+    console.log(saveName);
+    if (err) {
+      return callback(err);
+    }
+    request.get({ url: url, jar: cookieJar, encoding: null }, function (err, res, body) {
+      if (err) {
+        return callback(err);
+      }
+      callback(null, saveName, body);
+    });
+  });
 }
 
 exports.login = login;
 exports.getCourseIds = getCourseIds;
 exports.parseCourse = parseCourse;
 exports.parseCourses = parseCourses;
+exports.downloadFile = downloadFile;
