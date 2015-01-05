@@ -48,7 +48,7 @@ function getCourseIds(cookieJar, callback) {
     }).get();
     var courseIds = _.map(courseUrls, function (elem) {
       var params = elem.substring(elem.lastIndexOf('?'));
-      return queryString.parse(params)['course_id'];
+      return queryString.parse(params).course_id;
     });
     callback(null, courseIds);
   });
@@ -86,7 +86,7 @@ function parseCourseNotification(courseId, cookieJar, callback) {
         var url = columns.eq(1).find('a').attr('href');
         var urlParams = url.substring(url.lastIndexOf('?'));
         result.push({
-          id: queryString.parse(urlParams)['id'],
+          id: queryString.parse(urlParams).id,
           title: columns.eq(1).find('a').text().trim(),
           author: columns.eq(2).text(),
           releaseDate: columns.eq(3).text()
@@ -145,7 +145,7 @@ function parseCourseHomework(courseId, cookieJar, callback) {
     });
     async.each(result, function (entry, callback) {
       var params = entry.url.substring(entry.url.lastIndexOf('?'));
-      entry.id = queryString.parse(params)['id'];
+      entry.id = queryString.parse(params).id;
       request.get({
         url: 'http://learn.tsinghua.edu.cn/MultiLanguage/lesson/student/' + entry.url,
         jar: cookieJar
@@ -270,7 +270,7 @@ function getSaveName(url, cookieJar, callback) {
         saveName = S(line).chompLeft('Content-Disposition: attachment;filename="').chompRight('"').s;
       }
     });
-    if (saveName == null) {
+    if (saveName === null) {
       callback(new Error());
     } else {
       callback(null, saveName);
