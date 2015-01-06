@@ -48,7 +48,7 @@ function getCourseIds(cookieJar, callback) {
     }).get();
     var courseIds = _.map(courseUrls, function (elem) {
       var params = elem.substring(elem.lastIndexOf('?'));
-      return queryString.parse(params).course_id;
+      return parseInt(queryString.parse(params).course_id);
     });
     callback(null, courseIds);
   });
@@ -213,18 +213,10 @@ function parseCourseFile(courseId, cookieJar, callback) {
  */
 function parseCourse(courseId, cookieJar, callback) {
   async.parallel([
-    function (callback) {
-      parseCourseName(courseId, cookieJar, callback);
-    },
-    function (callback) {
-      parseCourseNotification(courseId, cookieJar, callback);
-    },
-    function (callback) {
-      parseCourseHomework(courseId, cookieJar, callback);
-    },
-    function (callback) {
-      parseCourseFile(courseId, cookieJar, callback);
-    }
+    async.apply(parseCourseName, courseId, cookieJar),
+    async.apply(parseCourseNotification, courseId, cookieJar),
+    async.apply(parseCourseHomework, courseId, cookieJar),
+    async.apply(parseCourseFile, courseId, cookieJar)
   ], function (err, result) {
     if (err) {
       return callback(err);
@@ -241,7 +233,7 @@ function parseCourse(courseId, cookieJar, callback) {
 
 /**
  * Parse multiple courses using specific cookie
- * @param {number} courseIds - The IDs of the courses
+ * @param {array} courseIds - The IDs of the courses
  * @param {object} cookieJar - Cookie object returned by {@link login} function
  * @param {function(err, result)} callback - The callback function, with parameters err and result.
  */
@@ -251,18 +243,32 @@ function parseCourses(courseIds, cookieJar, callback) {
   }, callback);
 }
 
-function getSaveName(url, cookieJar, callback) {
+/**
+ * Get save name of a specific attachment
+ * @param {string} url - The URL of the attachment
+ * @param {object} cookieJar - Cookie object returned by {@link login} function
+ * @param {string} [curl] - Path to cURL executable (default is 'curl')
+ * @param {function(err, result)} callback - The callback function, with parameters err and saveName.
+ */
+function getSaveName(url, cookieJar, curl, callback) {
+  if (typeof callback === 'undefined') {
+    callback = curl;
+    curl = 'curl';
+  }
   var components = require('url').parse(url);
   var cookieString = cookieJar.getCookieString(components.protocol + '//' + components.host);
   var spawn = require('child_process').spawn;
-  var child = spawn('curl', ['--cookie', cookieString, '--head', '-i', url], { stdio: [null, 'pipe'] });
+  var child = spawn(curl, ['--cookie', cookieString, '--head', '-i', url], { stdio: [null, 'pipe'] });
   var stream = child.stdout;
   stream.setEncoding('GBK');
   var output = '';
   stream.on('data', function (chunk) {
     output += chunk;
   });
-  child.on('exit', function () {
+  child.on('exit', function (code) {
+    if (code !== 0) {
+      return callback(new Error('Request unsucessful.'));
+    }
     var lines = S(output).lines();
     var saveName = null;
     _.each(lines, function (line) {
@@ -271,7 +277,7 @@ function getSaveName(url, cookieJar, callback) {
       }
     });
     if (saveName === null) {
-      callback(new Error());
+      callback(new Error('Cannot find Content-Disposition header.'));
     } else {
       callback(null, saveName);
     }
@@ -282,20 +288,14 @@ function getSaveName(url, cookieJar, callback) {
  * Download a specific attachment
  * @param {string} url - The URL of the attachment
  * @param {object} cookieJar - Cookie object returned by {@link login} function
- * @param {function(err, result)} callback - The callback function, with parameters err, saveName and fileBody.
+ * @param {function(err, result)} callback - The callback function, with parameters err and fileBody.
  */
 function downloadFile(url, cookieJar, callback) {
-  getSaveName(url, cookieJar, function (err, saveName) {
-    console.log(saveName);
+  request.get({ url: url, jar: cookieJar, encoding: null }, function (err, res, body) {
     if (err) {
       return callback(err);
     }
-    request.get({ url: url, jar: cookieJar, encoding: null }, function (err, res, body) {
-      if (err) {
-        return callback(err);
-      }
-      callback(null, saveName, body);
-    });
+    callback(null, body);
   });
 }
 
@@ -303,4 +303,5 @@ exports.login = login;
 exports.getCourseIds = getCourseIds;
 exports.parseCourse = parseCourse;
 exports.parseCourses = parseCourses;
+exports.getSaveName = getSaveName;
 exports.downloadFile = downloadFile;
