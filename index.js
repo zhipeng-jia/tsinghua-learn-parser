@@ -268,10 +268,10 @@ function getSaveName(url, cookieJar, curl, callback) {
     var contentHeader = _.find(S(output).lines(), function (line) {
       return S(line).startsWith('Content-Disposition: ');
     });
-    if (contentHeader === null) {
-      callback(new Error('Cannot find Content-Disposition header.'));
-    } else {
+    if (contentHeader) {
       callback(null, S(contentHeader).chompLeft('Content-Disposition: attachment;filename="').chompRight('"').s);
+    } else {
+      callback(new Error('Cannot find Content-Disposition header.'));
     }
   });
 }
